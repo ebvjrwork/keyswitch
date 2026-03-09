@@ -1,0 +1,24 @@
+# Test SSH keys (never commit real keys!)
+keyswitch_*
+*.pem
+*.key
+!keyswitch.sh
+
+# Backups
+keyswitch_backups/
+
+# Config files with sensitive data
+.keyswitch_config
+
+# macOS
+.DS_Store
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
