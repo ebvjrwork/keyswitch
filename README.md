@@ -18,13 +18,15 @@ A simple, self-installing SSH key management tool for developers who work with m
 Install keyswitch with a single command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/github-switch/main/keyswitch.sh | sh
+curl -fsSL https://raw.githubusercontent.com/ebvjrwork/keyswitch/main/keyswitch.sh | bash
 ```
+
+> **Note**: Use `bash` (not `sh`) for piped installation
 
 Or download and install manually:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/github-switch/main/keyswitch.sh -o keyswitch.sh
+curl -fsSL https://raw.githubusercontent.com/ebvjrwork/keyswitch/main/keyswitch.sh -o keyswitch.sh
 chmod +x keyswitch.sh
 ./keyswitch.sh install
 ```

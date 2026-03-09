@@ -7,7 +7,7 @@
 # contexts. Easily create, switch, and manage SSH keys for GitHub, GitLab,
 # and other SSH services.
 #
-# Installation: curl -fsSL <url_to_this_script> | sh
+# Installation: curl -fsSL <url_to_this_script> | bash
 # Usage: keyswitch <command> [options]
 #############################################################################
 
@@ -96,7 +96,7 @@ print_header() {
 #############################################################################
 
 install_keyswitch() {
-    print_header "Installing keyswitch..."
+    echo "Installing keyswitch..."
 
     # Determine installation directory
     local install_dir=""
@@ -106,7 +106,7 @@ install_keyswitch() {
     elif [ -d "${HOME}/.local/bin" ] || mkdir -p "${HOME}/.local/bin" 2>/dev/null; then
         install_dir="${HOME}/.local/bin"
     else
-        print_error "Cannot find writable installation directory"
+        echo "Error: Cannot find writable installation directory"
         echo "Please create ~/.local/bin and add it to your PATH, or run with sudo"
         exit 1
     fi
@@ -114,28 +114,33 @@ install_keyswitch() {
     # Copy this script to installation directory
     local target="${install_dir}/keyswitch"
 
-    # Create temporary file with script content
-    cat > "${target}.tmp" << 'SCRIPT_END'
-#!/bin/bash
-SCRIPT_CONTENT_PLACEHOLDER
-SCRIPT_END
-
-    # Replace placeholder with actual script (read from stdin or self)
-    if [ ! -t 0 ]; then
-        # Being piped, read from stdin
-        cat > "${target}"
-        chmod +x "${target}"
-    else
+    # Check if we can copy from $0 (direct execution)
+    if [ -f "$0" ] && [ -r "$0" ]; then
         # Direct execution, copy self
         cp "$0" "${target}"
         chmod +x "${target}"
+    else
+        # Being piped - cannot self-install this way
+        echo "Error: Cannot self-install when piped to sh"
+        echo ""
+        echo "Please use one of these installation methods instead:"
+        echo ""
+        echo "Method 1 (recommended):"
+        echo "  curl -fsSL https://raw.githubusercontent.com/ebvjrwork/keyswitch/main/keyswitch.sh | bash"
+        echo ""
+        echo "Method 2:"
+        echo "  curl -fsSL https://raw.githubusercontent.com/ebvjrwork/keyswitch/main/keyswitch.sh -o keyswitch.sh"
+        echo "  chmod +x keyswitch.sh"
+        echo "  ./keyswitch.sh install"
+        echo ""
+        exit 1
     fi
 
     # Create .ssh directory if it doesn't exist
     if [ ! -d "${SSH_DIR}" ]; then
         mkdir -p "${SSH_DIR}"
         chmod 700 "${SSH_DIR}"
-        print_success "Created ${SSH_DIR} directory"
+        echo "✓ Created ${SSH_DIR} directory"
     fi
 
     # Create config file if it doesn't exist
@@ -144,23 +149,88 @@ SCRIPT_END
         chmod 600 "${CONFIG_FILE}"
     fi
 
-    print_success "keyswitch installed to ${target}"
+    echo "✓ keyswitch installed to ${target}"
 
     # Check if install_dir is in PATH
-    if [[ ":${PATH}:" != *":${install_dir}:"* ]]; then
-        print_warning "${install_dir} is not in your PATH"
-        echo "Add it to your PATH by adding this line to your ~/.bashrc or ~/.zshrc:"
-        echo "  export PATH=\"\$PATH:${install_dir}\""
-    fi
+    case ":${PATH}:" in
+        *":${install_dir}:"*)
+            ;;
+        *)
+            echo "Warning: ${install_dir} is not in your PATH"
+            echo "Add it to your PATH by adding this line to your ~/.bashrc or ~/.zshrc:"
+            echo "  export PATH=\"\$PATH:${install_dir}\""
+            ;;
+    esac
 
-    print_info "Run 'keyswitch --help' to get started"
+    echo "ℹ Run 'keyswitch --help' to get started"
     exit 0
 }
 
-# Check if being piped (installation mode)
-if [ ! -t 0 ]; then
-    install_keyswitch
-fi
+# Auto-install when piped to bash (e.g., curl ... | bash)
+# Check if this is likely a piped execution
+# When piped, $0 will be something like "bash", "/bin/bash", "-bash", etc.
+case "$(basename "$0")" in
+    bash|-bash|sh|-sh|dash|-dash)
+        # Likely being piped, trigger installation
+        # We need to download and install since we can't copy from stdin
+        SCRIPT_URL="https://raw.githubusercontent.com/ebvjrwork/keyswitch/main/keyswitch.sh"
+
+        echo "Installing keyswitch..."
+
+        # Determine installation directory
+        INSTALL_DIR=""
+        if [ -w "/usr/local/bin" ]; then
+            INSTALL_DIR="/usr/local/bin"
+        elif [ -d "${HOME}/.local/bin" ] || mkdir -p "${HOME}/.local/bin" 2>/dev/null; then
+            INSTALL_DIR="${HOME}/.local/bin"
+        else
+            echo "Error: Cannot find writable installation directory"
+            echo "Please create ~/.local/bin and add it to your PATH, or run with sudo"
+            exit 1
+        fi
+
+        TARGET="${INSTALL_DIR}/keyswitch"
+
+        # Download the script
+        if command -v curl >/dev/null 2>&1; then
+            curl -fsSL "${SCRIPT_URL}" -o "${TARGET}"
+        elif command -v wget >/dev/null 2>&1; then
+            wget -qO "${TARGET}" "${SCRIPT_URL}"
+        else
+            echo "Error: Neither curl nor wget found. Cannot download script."
+            exit 1
+        fi
+
+        chmod +x "${TARGET}"
+
+        # Create .ssh directory if needed
+        if [ ! -d "${SSH_DIR}" ]; then
+            mkdir -p "${SSH_DIR}"
+            chmod 700 "${SSH_DIR}"
+            echo "✓ Created ${SSH_DIR} directory"
+        fi
+
+        if [ ! -f "${CONFIG_FILE}" ]; then
+            touch "${CONFIG_FILE}"
+            chmod 600 "${CONFIG_FILE}"
+        fi
+
+        echo "✓ keyswitch installed to ${TARGET}"
+
+        # Check PATH
+        case ":${PATH}:" in
+            *":${INSTALL_DIR}:"*) ;;
+            *)
+                echo "Warning: ${INSTALL_DIR} is not in your PATH"
+                echo "Add it to your PATH by adding this line to your ~/.bashrc or ~/.zshrc:"
+                echo "  export PATH=\"\$PATH:${INSTALL_DIR}\""
+                ;;
+        esac
+
+        echo "ℹ Run 'keyswitch --help' to get started"
+        exit 0
+        ;;
+esac
 
 #############################################################################
 # Configuration Management
@@ -237,10 +307,13 @@ validate_key_name() {
         return 1
     fi
 
-    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        print_error "Key name can only contain letters, numbers, hyphens, and underscores"
-        return 1
-    fi
+    # Check if name contains only allowed characters
+    case "$name" in
+        *[!a-zA-Z0-9_-]*)
+            print_error "Key name can only contain letters, numbers, hyphens, and underscores"
+            return 1
+            ;;
+    esac
 
     return 0
 }
@@ -599,7 +672,15 @@ cmd_restore() {
         exit 0
     fi
 
-    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt ${#backups[@]} ]; then
+    # Check if choice is a valid number
+    case "$choice" in
+        *[!0-9]*)
+            print_error "Invalid choice"
+            exit 1
+            ;;
+    esac
+
+    if [ "$choice" -lt 1 ] || [ "$choice" -gt ${#backups[@]} ]; then
         print_error "Invalid choice"
         exit 1
     fi
@@ -708,9 +789,10 @@ ${BOLD}EXAMPLES:${NC}
 
 ${BOLD}INSTALLATION:${NC}
     # Install via curl (recommended)
-    curl -fsSL <url_to_script> | sh
+    curl -fsSL <url_to_script> | bash
 
     # Or download and run
+    curl -fsSL <url_to_script> -o keyswitch.sh
     chmod +x keyswitch.sh
     ./keyswitch.sh install
 
@@ -721,8 +803,8 @@ ${BOLD}NOTES:${NC}
     • Configuration stored in ~/.ssh/.keyswitch_config
 
 ${BOLD}MORE INFO:${NC}
-    GitHub: <repository_url>
-    Report issues: <issues_url>
+    GitHub: https://github.com/ebvjrwork/keyswitch
+    Report issues: https://github.com/ebvjrwork/keyswitch/pulls
 EOF
 }
 
